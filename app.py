@@ -181,57 +181,129 @@ def load_latest_prev_streamer_softcon_and_cat(data_dir: str):
         df.columns = [str(c).strip() for c in df.columns]
         return df
 
-    # YYYYMMDD 있는 파일만 "weekly"로 간주해서 정렬
-    def dated_files(pattern: str):
+    # -------------------------------------------------
+    # filename 파서: YYYYMMDD_HHMMSS / YYYYMMDDHHMMSS / YYYYMMDD
+    # -------------------------------------------------
+    def parse_dt_from_stem(stem: str):
+        """
+        우선순위:
+        1) YYYYMMDD[_-]HHMMSS  (예: 20260216_101535)
+        2) YYYYMMDDHHMMSS      (예: 20260216101535)
+        3) YYYYMMDD            (예: 20260216)
+        """
+        s = stem
+
+        m = re.search(r"(20\d{6})[_-](\d{6})", s)
+        if m:
+            try:
+                return datetime.strptime(m.group(1) + m.group(2), "%Y%m%d%H%M%S")
+            except ValueError:
+                pass
+
+        m = re.search(r"(20\d{6})(\d{6})", s)
+        if m:
+            try:
+                return datetime.strptime(m.group(1) + m.group(2), "%Y%m%d%H%M%S")
+            except ValueError:
+                pass
+
+        m = re.search(r"(20\d{6})", s)
+        if m:
+            try:
+                return datetime.strptime(m.group(1), "%Y%m%d")
+            except ValueError:
+                pass
+
+        return None
+
+    def pick_latest_file(pattern: str):
         files = list(data_path.glob(pattern))
+        if not files:
+            return None
+
         pairs = []
         for f in files:
-            d = parse_snapshot_date_from_name(f.name)  # YYYYMMDD
-            if d is not None:
-                pairs.append((d, f))
-        pairs.sort(key=lambda x: x[0])
-        return pairs
+            dt = parse_dt_from_stem(f.stem)
+            if dt is not None:
+                pairs.append((dt, f))
 
-    # 월간/주간 구분이 필요하면 parse_period_from_filename 사용
+        # 파일명에서 날짜 파싱 안 되면 수정시간(mtime)으로 fallback
+        if not pairs:
+            return max(files, key=lambda p: p.stat().st_mtime)
+
+        pairs.sort(key=lambda x: x[0])
+        return pairs[-1][1]
+
+    def pick_latest_prev_files(pattern: str):
+        """
+        pattern에 해당하는 파일들 중 최신/전주(바로 이전) 파일을 반환
+        return: (latest_dt, latest_fp, prev_dt, prev_fp)
+        """
+        files = list(data_path.glob(pattern))
+        if not files:
+            return (None, None, None, None)
+
+        pairs = []
+        for f in files:
+            dt = parse_dt_from_stem(f.stem)
+            if dt is not None:
+                pairs.append((dt, f))
+
+        if not pairs:
+            # dt 파싱 실패 -> mtime 기반
+            files = sorted(files, key=lambda p: p.stat().st_mtime)
+            latest_fp = files[-1]
+            prev_fp = files[-2] if len(files) >= 2 else None
+            return (None, latest_fp, None, prev_fp)
+
+        pairs.sort(key=lambda x: x[0])
+        latest_dt, latest_fp = pairs[-1]
+        prev_dt, prev_fp = (pairs[-2] if len(pairs) >= 2 else (None, None))
+        return (latest_dt, latest_fp, prev_dt, prev_fp)
+
+    # -------------------------------------------------
+    # (선택) 월간/주간 구분: 기존 로직 유지
+    # 월간은 YYYYMM만 있는 파일도 있으니 기존 parse_period_from_filename 사용
+    # -------------------------------------------------
     def period_files(pattern: str, kind: str):
         files = list(data_path.glob(pattern))
         pairs = []
         for f in files:
             k, d = parse_period_from_filename(f.name)
             if k == kind and d is not None:
+                # 월간은 date만 있으니 (date, file)로 정렬
                 pairs.append((d, f))
         pairs.sort(key=lambda x: x[0])
         return pairs
 
-    # ✅ 주간 스트리머
-    sr_pairs = dated_files("스트리머_랭킹*.csv")
+    # ✅ 주간 스트리머 (날짜+시간까지 고려)
+    sr_latest_dt, sr_latest_fp, sr_prev_dt, sr_prev_fp = pick_latest_prev_files("스트리머_랭킹*.csv")
 
-    # ✅ 월간 스트리머 (파일명이 yyyymm만 있는 경우)
+    # ✅ 월간 스트리머 (파일명이 YYYYMM만 있는 경우)
     sr_m_pairs = period_files("스트리머_랭킹*.csv", "monthly")
-
-    # ✅ 소프트콘(주간)
-    sc_pairs = dated_files("소프트콘_랭킹*.csv")
-
-    # ✅ 카테고리 통계 파일
-    cat_files = sorted(data_path.glob("카테고리_플랫폼별_통계*.csv"))
-
-    if len(sr_pairs) == 0 or len(cat_files) == 0:
-        return None
-
-    sr_latest_date, sr_latest_fp = sr_pairs[-1]
-    sr_prev_date, sr_prev_fp = (sr_pairs[-2] if len(sr_pairs) >= 2 else (None, None))
-
     sr_m_latest_date, sr_m_latest_fp = (sr_m_pairs[-1] if len(sr_m_pairs) >= 1 else (None, None))
     sr_m_prev_date, sr_m_prev_fp = (sr_m_pairs[-2] if len(sr_m_pairs) >= 2 else (None, None))
 
-    sc_latest_date, sc_latest_fp = (sc_pairs[-1] if len(sc_pairs) >= 1 else (None, None))
-    sc_prev_date, sc_prev_fp = (sc_pairs[-2] if len(sc_pairs) >= 2 else (None, None))
+    # ✅ 소프트콘(주간) (날짜+시간까지 고려)
+    sc_latest_dt, sc_latest_fp, sc_prev_dt, sc_prev_fp = pick_latest_prev_files("소프트콘_랭킹*.csv")
 
-    cat_fp = cat_files[-1]
+    # ✅ 카테고리 통계: 가장 최근 생성본(파일명 날짜+시간) 선택 (핵심 수정)
+    cat_fp = pick_latest_file("카테고리_플랫폼별_통계*.csv")
+
+    # 유효성 체크
+    if (sr_latest_fp is None) or (cat_fp is None):
+        return None
+
+    # streamer_latest_date / prev_date는 기존 타입(date) 기대하니까 date로 normalize
+    streamer_latest_date = sr_latest_dt.date() if isinstance(sr_latest_dt, datetime) else None
+    streamer_prev_date = sr_prev_dt.date() if isinstance(sr_prev_dt, datetime) else None
+
+    softcon_latest_date = sc_latest_dt.date() if isinstance(sc_latest_dt, datetime) else None
+    softcon_prev_date = sc_prev_dt.date() if isinstance(sc_prev_dt, datetime) else None
 
     return {
-        "streamer_latest_date": sr_latest_date,
-        "streamer_prev_date": sr_prev_date,
+        "streamer_latest_date": streamer_latest_date,
+        "streamer_prev_date": streamer_prev_date,
         "streamer_latest": read_csv(sr_latest_fp),
         "streamer_prev": read_csv(sr_prev_fp) if sr_prev_fp else None,
 
@@ -240,8 +312,8 @@ def load_latest_prev_streamer_softcon_and_cat(data_dir: str):
         "streamer_monthly_latest": read_csv(sr_m_latest_fp) if sr_m_latest_fp else None,
         "streamer_monthly_prev": read_csv(sr_m_prev_fp) if sr_m_prev_fp else None,
 
-        "softcon_latest_date": sc_latest_date,
-        "softcon_prev_date": sc_prev_date,
+        "softcon_latest_date": softcon_latest_date,
+        "softcon_prev_date": softcon_prev_date,
         "softcon_latest": read_csv(sc_latest_fp) if sc_latest_fp else None,
         "softcon_prev": read_csv(sc_prev_fp) if sc_prev_fp else None,
 
