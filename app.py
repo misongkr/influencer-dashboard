@@ -987,13 +987,15 @@ if sr_prev is not None and prev_week is not None and len(cs_prev) > 0:
     prev_pack = {"kpis": prev_kpis, "platform_df": prev_platform_df, "top10": prev_top10, "extra": prev_extra}
 
 
-# 스냅샷(작게)
+# ✅ 주간 스냅샷 라벨: 스트리머/소프트콘 파일 기준
+wk_latest = data.get("streamer_latest_date") or data.get("softcon_latest_date")
+wk_prev   = data.get("streamer_prev_date")   or data.get("softcon_prev_date")
+
 cols = st.columns(2)
 with cols[0]:
-    st.caption(f"스냅샷(주차 기준): {curr_week.date()}")
+    st.caption(f"주간 스냅샷(파일 기준): {wk_latest if wk_latest is not None else 'N/A'}")
 with cols[1]:
-    st.caption(f"전주 스냅샷(주차 기준): {prev_week.date() if prev_week is not None else '없음'}")
-# st.caption(f"카테고리 통계 파일: {data['cat_filename']} (1개 유지/누적)")
+    st.caption(f"전주 스냅샷(파일 기준): {wk_prev if wk_prev is not None else '없음'}")
 
 # 주간 요약
 st.markdown("### 주간 요약")
