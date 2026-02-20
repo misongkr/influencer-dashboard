@@ -6,6 +6,8 @@ import pandas as pd
 import streamlit as st
 import altair as alt
 
+import subprocess
+
 # -----------------------------
 # Config
 # -----------------------------
@@ -810,6 +812,12 @@ with st.sidebar:
 # Main UI
 # -----------------------------
 st.title(f"{game} 인플루언서 전략 대시보드")
+
+st.sidebar.markdown("### DEBUG")
+st.sidebar.write(
+    "GIT_SHA:",
+    subprocess.check_output(["git", "rev-parse", "--short", "HEAD"]).decode().strip()
+)
 
 data = load_latest_prev_streamer_softcon_and_cat(data_dir)
 if data is None:
