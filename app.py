@@ -391,66 +391,76 @@ def normalize_category_platform_stats(df: pd.DataFrame) -> pd.DataFrame:
     viewership_col = pick(col_candidates["viewership"])
 
     out = pd.DataFrame()
-    out["플랫폼"] = df[platform_col].astype(str).str.strip()
 
-# ✅ 강화형 날짜 파싱
-raw = df[date_col]
+    # platform은 필수
+    if platform_col is None:
+        out["플랫폼"] = np.nan
+    else:
+        out["플랫폼"] = df[platform_col].astype(str).str.strip()
 
-# 1) 숫자형(엑셀 시리얼/yyyymmdd) 가능성 처리
-if pd.api.types.is_numeric_dtype(raw):
-    s = raw.copy()
+    # -------------------------
+    # ✅ 날짜 파싱 (핵심)
+    # -------------------------
+    if date_col is None:
+        out["날짜"] = pd.NaT
+    else:
+        raw = df[date_col]
 
-    # excel serial로 보이는 값들 (대략 30000~80000)
-    mask_excel = s.between(30000, 80000, inclusive="both")
-    out_date = pd.Series([pd.NaT] * len(s))
+        # 1) 숫자형(엑셀 시리얼/yyyymmdd) 가능성
+        if pd.api.types.is_numeric_dtype(raw):
+            s = raw.copy()
 
-    if mask_excel.any():
-        out_date.loc[mask_excel] = pd.to_datetime(
-            s.loc[mask_excel],
-            unit="D",
-            origin="1899-12-30",
-            errors="coerce"
-        )
+            # excel serial로 보이는 값 (대략 30000~80000)
+            mask_excel = s.between(30000, 80000, inclusive="both")
+            out_date = pd.Series([pd.NaT] * len(s), index=df.index)
 
-    # 나머지는 yyyymmdd 시도
-    rest = ~mask_excel
-    if rest.any():
-        out_date.loc[rest] = pd.to_datetime(
-            s.loc[rest].astype("Int64").astype(str),
-            format="%Y%m%d",
-            errors="coerce"
-        )
+            if mask_excel.any():
+                out_date.loc[mask_excel] = pd.to_datetime(
+                    s.loc[mask_excel],
+                    unit="D",
+                    origin="1899-12-30",
+                    errors="coerce"
+                )
 
-    out["날짜"] = out_date
+            # 나머지는 yyyymmdd 시도
+            rest = ~mask_excel
+            if rest.any():
+                out_date.loc[rest] = pd.to_datetime(
+                    s.loc[rest].astype("Int64").astype(str),
+                    format="%Y%m%d",
+                    errors="coerce"
+                )
 
-else:
-    raw_date = raw.astype(str).str.strip()
+            out["날짜"] = out_date
 
-    # 괄호/요일 제거
-    raw_date = raw_date.str.replace(r"\s*\([^)]*\)\s*", "", regex=True)
+        else:
+            raw_date = raw.astype(str).str.strip()
 
-    # 한글/기타 텍스트 제거(뒤에 붙는 단어 제거)
-    raw_date = raw_date.str.replace(r"[가-힣]+", "", regex=True).str.strip()
+            # 괄호/요일 제거
+            raw_date = raw_date.str.replace(r"\s*\([^)]*\)\s*", "", regex=True)
 
-    # 구분자 통일
-    raw_date = raw_date.str.replace(".", "-", regex=False).str.replace("/", "-", regex=False)
+            # 한글/기타 텍스트 제거
+            raw_date = raw_date.str.replace(r"[가-힣]+", "", regex=True).str.strip()
 
-    # 공백이 있으면 앞부분(날짜)만 우선 사용
-    raw_date2 = raw_date.str.split().str[0]
+            # 구분자 통일
+            raw_date = raw_date.str.replace(".", "-", regex=False).str.replace("/", "-", regex=False)
 
-    # 1차: YYYY-MM-DD
-    out_dt = pd.to_datetime(raw_date2, format="%Y-%m-%d", errors="coerce")
+            # 공백 있으면 앞 토큰만
+            raw_date2 = raw_date.str.split().str[0]
 
-    # 2차: YYYYMMDD (실패한 것만)
-    mask = out_dt.isna()
-    if mask.any():
-        out_dt.loc[mask] = pd.to_datetime(raw_date2.loc[mask], format="%Y%m%d", errors="coerce")
+            # 1차: YYYY-MM-DD
+            out_dt = pd.to_datetime(raw_date2, format="%Y-%m-%d", errors="coerce")
 
-    out["날짜"] = out_dt
+            # 2차: YYYYMMDD
+            mask = out_dt.isna()
+            if mask.any():
+                out_dt.loc[mask] = pd.to_datetime(raw_date2.loc[mask], format="%Y%m%d", errors="coerce")
 
-    
+            out["날짜"] = out_dt
 
-    # ✅ 이 줄들이 문제였음 — 반드시 같은 깊이
+    # -------------------------
+    # 나머지 수치 컬럼
+    # -------------------------
     out["방송시간"] = df[stream_time_col].map(to_number) if stream_time_col else np.nan
     out["평균시청자"] = df[avg_viewers_col].map(to_number) if avg_viewers_col else np.nan
     out["평균채팅"] = df[avg_chat_col].map(to_number) if avg_chat_col else np.nan
@@ -458,7 +468,6 @@ else:
 
     out = out.dropna(subset=["플랫폼"])
     return out
-
 
 
 # -----------------------------
