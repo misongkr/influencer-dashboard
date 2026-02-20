@@ -393,11 +393,60 @@ def normalize_category_platform_stats(df: pd.DataFrame) -> pd.DataFrame:
     out = pd.DataFrame()
     out["플랫폼"] = df[platform_col].astype(str).str.strip()
 
-    # ✅ 여기부터 날짜 처리 (들여쓰기 중요)
-    raw_date = df[date_col].astype(str).str.strip()
+# ✅ 강화형 날짜 파싱
+raw = df[date_col]
+
+# 1) 숫자형(엑셀 시리얼/yyyymmdd) 가능성 처리
+if pd.api.types.is_numeric_dtype(raw):
+    s = raw.copy()
+
+    # excel serial로 보이는 값들 (대략 30000~80000)
+    mask_excel = s.between(30000, 80000, inclusive="both")
+    out_date = pd.Series([pd.NaT] * len(s))
+
+    if mask_excel.any():
+        out_date.loc[mask_excel] = pd.to_datetime(
+            s.loc[mask_excel],
+            unit="D",
+            origin="1899-12-30",
+            errors="coerce"
+        )
+
+    # 나머지는 yyyymmdd 시도
+    rest = ~mask_excel
+    if rest.any():
+        out_date.loc[rest] = pd.to_datetime(
+            s.loc[rest].astype("Int64").astype(str),
+            format="%Y%m%d",
+            errors="coerce"
+        )
+
+    out["날짜"] = out_date
+
+else:
+    raw_date = raw.astype(str).str.strip()
+
+    # 괄호/요일 제거
     raw_date = raw_date.str.replace(r"\s*\([^)]*\)\s*", "", regex=True)
-    raw_date = raw_date.str.replace(".", "-", regex=False)
-    out["날짜"] = pd.to_datetime(raw_date, errors="coerce")
+
+    # 한글/기타 텍스트 제거(뒤에 붙는 단어 제거)
+    raw_date = raw_date.str.replace(r"[가-힣]+", "", regex=True).str.strip()
+
+    # 구분자 통일
+    raw_date = raw_date.str.replace(".", "-", regex=False).str.replace("/", "-", regex=False)
+
+    # 공백이 있으면 앞부분(날짜)만 우선 사용
+    raw_date2 = raw_date.str.split().str[0]
+
+    # 1차: YYYY-MM-DD
+    out_dt = pd.to_datetime(raw_date2, format="%Y-%m-%d", errors="coerce")
+
+    # 2차: YYYYMMDD (실패한 것만)
+    mask = out_dt.isna()
+    if mask.any():
+        out_dt.loc[mask] = pd.to_datetime(raw_date2.loc[mask], format="%Y%m%d", errors="coerce")
+
+    out["날짜"] = out_dt
 
     
 
