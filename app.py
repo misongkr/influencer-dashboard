@@ -892,6 +892,10 @@ st.sidebar.write(
 )
 
 data = load_latest_prev_streamer_softcon_and_cat(data_dir)
+st.sidebar.markdown("### CAT DEBUG")
+st.sidebar.write("CAT_FILE:", data["cat_filename"])
+st.sidebar.write("CAT_MAX_DATE:", pd.to_datetime(data["cat_current"].get("날짜"), errors="coerce").max())
+
 if data is None:
     st.warning("data 폴더에서 필요한 CSV를 찾지 못했습니다.\n"
                "- 스트리머_랭킹_YYYYMMDD*.csv (최소 1개)\n"
