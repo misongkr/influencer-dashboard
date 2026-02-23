@@ -170,7 +170,7 @@ def to_monday(dt_series: pd.Series) -> pd.Series:
 # -----------------------------
 # Loaders (운영 룰 반영)
 # -----------------------------
-@st.cache_data(show_spinner=False)
+@st.cache_data(show_spinner=False, ttl=600)  # 10분마다 자동 갱신
 def load_latest_prev_streamer_softcon_and_cat(data_dir: str):
     data_path = Path(data_dir)
     if not data_path.exists():
@@ -936,7 +936,10 @@ with st.sidebar:
     )
 
     data_dir = f"data/{game}"
-
+    
+if st.sidebar.button("캐시 초기화"):
+    st.cache_data.clear()
+    st.rerun()
 
 # -----------------------------
 # Main UI
