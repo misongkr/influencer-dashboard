@@ -932,7 +932,7 @@ with st.sidebar:
 
     game = st.selectbox(
         "게임",
-        ["ARCRaiders", "THEFINALS"]
+        ["ARCRaiders", "THEFINALS", "NAKWON"]
     )
 
     data_dir = f"data/{game}"
