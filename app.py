@@ -946,26 +946,39 @@ if st.sidebar.button("캐시 초기화"):
 # -----------------------------
 st.title(f"{game} 인플루언서 전략 대시보드")
 
-st.sidebar.markdown("### CAT DEBUG")
+st.sidebar.markdown("### DEBUG")
+st.sidebar.write(
+    "GIT_SHA:",
+    subprocess.check_output(["git", "rev-parse", "--short", "HEAD"]).decode().strip()
+)
 
-if data:
-    st.sidebar.write("CAT_FILE:", data["cat_filename"])
-    st.sidebar.write(
-        "CAT_MAX_DATE:",
-        pd.to_datetime(data["cat_current"].get("날짜"), errors="coerce").max()
-    )
-else:
-    st.sidebar.write("CAT_FILE: 없음")
-
+# 데이터 로드
 data = load_latest_prev_streamer_softcon_and_cat(data_dir)
-st.sidebar.markdown("### CAT DEBUG")
-st.sidebar.write("CAT_FILE:", data["cat_filename"])
-st.sidebar.write("CAT_MAX_DATE:", pd.to_datetime(data["cat_current"].get("날짜"), errors="coerce").max())
 
+# CAT DEBUG
+st.sidebar.markdown("### CAT DEBUG")
+if data is not None:
+    st.sidebar.write("CAT_FILE:", data.get("cat_filename", "없음"))
+
+    cat_current = data.get("cat_current")
+    if cat_current is not None and "날짜" in cat_current.columns:
+        st.sidebar.write(
+            "CAT_MAX_DATE:",
+            pd.to_datetime(cat_current["날짜"], errors="coerce").max()
+        )
+    else:
+        st.sidebar.write("CAT_MAX_DATE:", "없음")
+else:
+    st.sidebar.write("CAT_FILE:", "없음")
+    st.sidebar.write("CAT_MAX_DATE:", "없음")
+
+# 필수 파일 없으면 여기서 중단
 if data is None:
-    st.warning("data 폴더에서 필요한 CSV를 찾지 못했습니다.\n"
-               "- 스트리머_랭킹_YYYYMMDD*.csv (최소 1개)\n"
-               "- 카테고리_플랫폼별_통계*.csv (최소 1개)")
+    st.warning(
+        "data 폴더에서 필요한 CSV를 찾지 못했습니다.\n"
+        "- 스트리머_랭킹_YYYYMMDD*.csv (최소 1개)\n"
+        "- 카테고리_플랫폼별_통계*.csv (최소 1개)"
+    )
     st.stop()
 
 # 카테고리 통계(누적 1파일)에서 최신 주/전주 분리
