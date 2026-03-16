@@ -946,11 +946,16 @@ if st.sidebar.button("캐시 초기화"):
 # -----------------------------
 st.title(f"{game} 인플루언서 전략 대시보드")
 
-st.sidebar.markdown("### DEBUG")
-st.sidebar.write(
-    "GIT_SHA:",
-    subprocess.check_output(["git", "rev-parse", "--short", "HEAD"]).decode().strip()
-)
+st.sidebar.markdown("### CAT DEBUG")
+
+if data:
+    st.sidebar.write("CAT_FILE:", data["cat_filename"])
+    st.sidebar.write(
+        "CAT_MAX_DATE:",
+        pd.to_datetime(data["cat_current"].get("날짜"), errors="coerce").max()
+    )
+else:
+    st.sidebar.write("CAT_FILE: 없음")
 
 data = load_latest_prev_streamer_softcon_and_cat(data_dir)
 st.sidebar.markdown("### CAT DEBUG")
