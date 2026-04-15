@@ -31,7 +31,7 @@ def check_password():
             st.sidebar.caption("비밀번호를 입력해주세요")
             st.stop()
 
-check_password()
+#check_password()
 
 
 PLATFORM_COLORS = {
@@ -932,7 +932,7 @@ with st.sidebar:
 
     game = st.selectbox(
         "게임",
-        ["ARCRaiders", "THEFINALS", "NAKWON"]
+        ["ARCRaiders", "THEFINALS", "OVERWATCH", "NAKWON"]
     )
 
     data_dir = f"data/{game}"
