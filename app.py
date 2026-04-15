@@ -177,9 +177,24 @@ def load_latest_prev_streamer_softcon_and_cat(data_dir: str):
         return None
 
     def read_csv(fp: Path):
+    try:
+        # 1차: 기본 (빠른 C 엔진)
         df = pd.read_csv(fp, encoding="utf-8-sig")
-        df.columns = [str(c).strip() for c in df.columns]
-        return df
+    except pd.errors.ParserError as e:
+        print(f"[CSV ERROR] {fp}")
+        print(e)
+
+        # 2차: Python 엔진 + 문제 라인 무시
+        df = pd.read_csv(
+            fp,
+            encoding="utf-8-sig",
+            engine="python",
+            on_bad_lines="warn"  # ← 핵심
+        )
+
+    # 컬럼 정리
+    df.columns = [str(c).strip() for c in df.columns]
+    return df
 
     # -------------------------------------------------
     # filename 파서: YYYYMMDD_HHMMSS / YYYYMMDDHHMMSS / YYYYMMDD
