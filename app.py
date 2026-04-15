@@ -176,7 +176,7 @@ def load_latest_prev_streamer_softcon_and_cat(data_dir: str):
     if not data_path.exists():
         return None
 
-    def read_csv(fp: Path):
+def read_csv(fp: Path):
     print(f"[READ CSV] {fp}")
 
     try:
